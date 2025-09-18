@@ -65,6 +65,22 @@ Target::Target(double x, double vyaw, double radius, double h) : armor_num_(4)
   ekf_ = tools::ExtendedKalmanFilter(x0, P0, x_add);  //初始化滤波器（预测量、预测量协方差）
 }
 
+Target::Target(double x,double direction, double v, double vyaw, double radius, double h) : armor_num_(4)
+{
+  Eigen::VectorXd x0{{x, v*std::cos(direction), 0, v*std::sin(direction), 0, 0, 0, vyaw, radius, 0, h}};
+  Eigen::VectorXd P0_dig{{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+  Eigen::MatrixXd P0 = P0_dig.asDiagonal();
+
+  // 防止夹角求和出现异常值
+  auto x_add = [](const Eigen::VectorXd & a, const Eigen::VectorXd & b) -> Eigen::VectorXd {
+    Eigen::VectorXd c = a + b;
+    c[6] = tools::limit_rad(c[6]);
+    return c;
+  };
+
+  ekf_ = tools::ExtendedKalmanFilter(x0, P0, x_add);  //初始化滤波器（预测量、预测量协方差）
+}
+
 void Target::predict(std::chrono::steady_clock::time_point t)
 {
   auto dt = tools::delta_time(t, t_);
@@ -133,6 +149,7 @@ void Target::predict(double dt)
     this->ekf_.x[7] = this->ekf_.x[7] > 0 ? 2.51 : -2.51;
 
   ekf_.predict(F, Q, f);
+  // ekf_.predict(F, Eigen::MatrixXd::Zero(11,11), f);
 }
 
 void Target::update(const Armor & armor)

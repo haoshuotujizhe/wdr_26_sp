@@ -60,9 +60,7 @@ IMU型号：使用C板内置BMI088作为IMU\
    - 其余：
     ```bash
     sudo apt install -y \
-        git \
         g++ \
-        cmake \
         can-utils \
         libopencv-dev \
         libfmt-dev \
@@ -77,7 +75,7 @@ IMU型号：使用C板内置BMI088作为IMU\
 
 2. 编译：
     ```bash
-    cmake -B build
+    cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     make -C build/ -j`nproc`
     ```
 

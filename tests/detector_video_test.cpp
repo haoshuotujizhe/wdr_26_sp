@@ -72,6 +72,9 @@ int main(int argc, char * argv[])
 
     auto key = cv::waitKey(33);
     if (key == 'q') break;
+    if (key == ' ') {  // 如果按下空格键
+      cv::waitKey(0);    // 无限期等待，直到有任意键按下，实现暂停
+    }
   }
 
   return 0;

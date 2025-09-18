@@ -217,6 +217,11 @@ void Solver::optimize_yaw(Armor & armor) const
   armor.ypr_in_world[0] = best_yaw;
 }
 
+void Solver::optimize_yaw_mylights(Armor & armor)
+{
+  
+}
+
 double Solver::SJTU_cost(
   const std::vector<cv::Point2f> & cv_refs, const std::vector<cv::Point2f> & cv_pts,
   const double & inclined) const
