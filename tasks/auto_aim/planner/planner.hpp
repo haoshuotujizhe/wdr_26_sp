@@ -14,7 +14,7 @@ constexpr double DT = 0.01;
 constexpr int HALF_HORIZON = 50;
 constexpr int HORIZON = HALF_HORIZON * 2;
 
-using Trajectory = Eigen::Matrix<double, 4, HORIZON>;  // yaw, yaw_vel, pitch, pitch_vel
+using  Trajectory = Eigen::Matrix<double, 4, HORIZON>;  // yaw, yaw_vel, pitch, pitch_vel
 
 struct Plan
 {
@@ -30,14 +30,37 @@ struct Plan
   float pitch_acc;
 };
 
+struct Plan_double
+{
+  bool control;
+  bool fire;
+  float target_yaw;
+  float target_pitch;
+  float yaw;
+  float yaw_vel;
+  float yaw_acc;
+  float yaw_big;
+  float yaw_vel_big;
+  float yaw_acc_big;
+  float yaw_small;
+  float yaw_vel_small;
+  float yaw_acc_small;
+  float pitch;
+  float pitch_vel;
+  float pitch_acc;
+};
+
 class Planner
 {
 public:
   Eigen::Vector4d debug_xyza;
   Planner(const std::string & config_path);
+  Planner(const std::string & config_path,const int ifdouble);
 
   Plan plan(Target target, double bullet_speed);
   Plan plan(std::optional<Target> target, double bullet_speed);
+  Plan_double plan_double(std::optional<Target> target, double bullet_speed);
+  Plan_double plan_double(Target target, double bullet_speed);
 
 private:
   double yaw_offset_;
@@ -49,6 +72,7 @@ private:
   TinySolver * pitch_solver_;
 
   void setup_yaw_solver(const std::string & config_path);
+  void setup_doubleyaw_solver(const std::string & config_path);
   void setup_pitch_solver(const std::string & config_path);
 
   Eigen::Matrix<double, 2, 1> aim(const Target & target, double bullet_speed);

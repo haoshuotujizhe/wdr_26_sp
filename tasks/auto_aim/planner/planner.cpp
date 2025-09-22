@@ -24,6 +24,20 @@ Planner::Planner(const std::string & config_path)
   setup_pitch_solver(config_path);
 }
 
+Planner::Planner(const std::string & config_path,const int ifdouble)
+{
+  auto yaml = tools::load(config_path);
+  yaw_offset_ = tools::read<double>(yaml, "yaw_offset") / 57.3;
+  pitch_offset_ = tools::read<double>(yaml, "pitch_offset") / 57.3;
+  fire_thresh_ = tools::read<double>(yaml, "fire_thresh");
+  decision_speed_ = tools::read<double>(yaml, "decision_speed");
+  high_speed_delay_time_ = tools::read<double>(yaml, "high_speed_delay_time");
+  low_speed_delay_time_ = tools::read<double>(yaml, "low_speed_delay_time");
+
+  setup_doubleyaw_solver(config_path);
+  setup_pitch_solver(config_path);
+}
+
 Plan Planner::plan(Target target, double bullet_speed)
 {
   // 0. Check bullet speed
@@ -107,6 +121,101 @@ Plan Planner::plan(std::optional<Target> target, double bullet_speed)
   return plan(*target, bullet_speed);
 }
 
+Plan_double Planner::plan_double(std::optional<Target> target, double bullet_speed)
+{
+  if (!target.has_value()) return {false};
+
+  double delay_time =
+    std::abs(target->ekf_x()[7]) > decision_speed_ ? high_speed_delay_time_ : low_speed_delay_time_;
+
+  auto future = std::chrono::steady_clock::now() + std::chrono::microseconds(int(delay_time * 1e6));
+
+  target->predict(future);
+
+  return plan_double(*target, bullet_speed);
+}
+
+Plan_double Planner::plan_double(Target target, double bullet_speed)
+{
+  // 0. Check bullet speed
+  if (bullet_speed < 10 || bullet_speed > 25) {
+    bullet_speed = 22;
+  }
+
+  // 1. Predict fly_time
+  Eigen::Vector3d xyz;
+  auto min_dist = 1e10;
+  for (auto & xyza : target.armor_xyza_list()) {
+    auto dist = xyza.head<2>().norm();
+    if (dist < min_dist) {
+      min_dist = dist;
+      xyz = xyza.head<3>();
+    }
+  }
+  auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
+  target.predict(bullet_traj.fly_time);
+
+  // 2. Get trajectory
+  double yaw0;
+  Trajectory traj;
+  try {
+    yaw0 = aim(target, bullet_speed)(0);
+    traj = get_trajectory(target, yaw0, bullet_speed);
+  } catch (const std::exception & e) {
+    tools::logger()->warn("Unsolvable target {:.2f}", bullet_speed);
+    return {false};
+  }
+
+  // 3. Solve yaw
+  Eigen::VectorXd x0(5);
+  x0 << traj(0, 0), traj(0, 0)*0.3, traj(0, 0)*0.7, traj(1, 0)*0.3, traj(1, 0)*0.7;
+  tiny_set_x0(yaw_solver_, x0);
+
+  yaw_solver_->work->Xref = Eigen::MatrixXd::Zero(5,HORIZON);
+  yaw_solver_->work->Xref.block<0, 0>(1, HORIZON) = traj.block(0, 0, 1, HORIZON);
+  tiny_solve(yaw_solver_);
+
+  // 4. Solve pitch
+  Eigen::VectorXd x01(2);
+  x01 << traj(2, 0), traj(3, 0);
+  tiny_set_x0(pitch_solver_, x01);
+
+  pitch_solver_->work->Xref = traj.block(2, 0, 2, HORIZON);
+  tiny_solve(pitch_solver_);
+
+  Plan_double plan_double;
+  plan_double.control = true;
+
+  plan_double.target_yaw = tools::limit_rad(traj(0, HALF_HORIZON) + yaw0);
+  plan_double.target_pitch = traj(2, HALF_HORIZON);
+
+  plan_double.yaw = tools::limit_rad(yaw_solver_->work->x(0, HALF_HORIZON) + yaw0);
+  plan_double.yaw_vel = yaw_solver_->work->x(1, HALF_HORIZON);
+  // plan_double.yaw_acc = yaw_solver_->work->u(0, HALF_HORIZON);
+  plan_double.yaw_acc = 0;
+
+  plan_double.yaw_big = tools::limit_rad(yaw_solver_->work->x(1, HALF_HORIZON) + yaw0);
+  plan_double.yaw_vel_big = yaw_solver_->work->x(3, HALF_HORIZON);
+  plan_double.yaw_acc_big = yaw_solver_->work->u(0, HALF_HORIZON);
+
+  plan_double.yaw_small = tools::limit_rad(yaw_solver_->work->x(2, HALF_HORIZON) + yaw0);
+  plan_double.yaw_vel_small = yaw_solver_->work->x(4, HALF_HORIZON);
+  plan_double.yaw_acc_small = yaw_solver_->work->u(1, HALF_HORIZON);
+
+
+  plan_double.pitch = pitch_solver_->work->x(0, HALF_HORIZON);
+  plan_double.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
+  plan_double.pitch_acc = pitch_solver_->work->u(0, HALF_HORIZON);
+
+  auto shoot_offset_ = 2;
+  plan_double.fire =
+    std::hypot(
+      traj(0, HALF_HORIZON + shoot_offset_) - yaw_solver_->work->x(0, HALF_HORIZON + shoot_offset_),
+      traj(2, HALF_HORIZON + shoot_offset_) -
+        pitch_solver_->work->x(0, HALF_HORIZON + shoot_offset_)) < fire_thresh_;
+  return plan_double;
+}
+
 void Planner::setup_yaw_solver(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
@@ -128,6 +237,53 @@ void Planner::setup_yaw_solver(const std::string & config_path)
   tiny_set_bound_constraints(yaw_solver_, x_min, x_max, u_min, u_max);
 
   yaw_solver_->settings->max_iter = 10;
+}
+
+void Planner::setup_doubleyaw_solver(const std::string & config_path)
+{
+  auto yaml = tools::load(config_path);
+  auto max_big_yaw_acc = tools::read<double>(yaml, "max_big_yaw_acc");
+  auto max_small_yaw_acc = tools::read<double>(yaml, "max_small_yaw_acc");
+  auto Q_yaw = tools::read<std::vector<double>>(yaml, "Q_yaw");
+  auto R_yaw = tools::read<std::vector<double>>(yaml, "R_yaw");
+  //clang-format off
+  Eigen::MatrixXd A{{1, 0, 0, DT, DT}, \
+                    {0, 1, 0, DT, 0 }, \
+                    {0, 0, 1, 0 , DT}, \
+                    {0, 0, 0, 1 , 0 }, \
+                    {0, 0, 0, 0 , 1 }  };
+  //clang-format on
+  Eigen::MatrixXd B{{0,0},{0,0},{0,0}, {DT, 0}, {0, DT}};
+  Eigen::VectorXd f{{0, 0,0,0, 0}};
+  Eigen::Matrix<double, 5, 1> Q(Q_yaw.data());
+  Eigen::Matrix<double, 2, 1> R(R_yaw.data());
+  tiny_setup(&yaw_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 5, 2, HORIZON, 0);
+
+  Eigen::MatrixXd x_max(5, HORIZON);
+  x_max.row(0).setConstant(1e17); // No limit on angle
+  x_max.row(1).setConstant(10.0);  // No limit on angle1
+  x_max.row(2).setConstant(M_PI/6);  // limit on angle2
+  x_max.row(3).setConstant(10.0); // Max velocity 1
+  x_max.row(4).setConstant(10.0);  // Max velocity 2
+
+
+  Eigen::MatrixXd x_min(5, HORIZON);
+  x_min.row(0).setConstant(-1e17); // No limit on angle
+  x_min.row(1).setConstant(-10.0); // Min velocity 1
+  x_min.row(2).setConstant(-M_PI/6); // Min velocity 2
+  x_min.row(3).setConstant(-10.0); // Max velocity 1
+  x_min.row(4).setConstant(-10.0);  // Max velocity 2
+
+  Eigen::MatrixXd u_max(2, HORIZON - 1);
+  u_max.row(0).setConstant(max_big_yaw_acc);  // Limit for u(0)
+  u_max.row(1).setConstant(max_small_yaw_acc); // Limit for u(1)
+
+  Eigen::MatrixXd u_min(2, HORIZON - 1);
+  u_min.row(0).setConstant(-max_big_yaw_acc); // Limit for u(0)
+  u_min.row(1).setConstant(-max_small_yaw_acc); // Limit for u(1)
+  tiny_set_bound_constraints(yaw_solver_, x_min, x_max, u_min, u_max);
+
+  yaw_solver_->settings->max_iter = 10; 
 }
 
 void Planner::setup_pitch_solver(const std::string & config_path)
