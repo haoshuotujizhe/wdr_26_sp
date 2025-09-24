@@ -68,6 +68,8 @@ int main(int argc, char * argv[])
     data["plan_pitch_vel"] = plan.pitch_vel;
     data["plan_pitch_acc"] = plan.pitch_acc;
 
+    data["plan_yaw_sum"] = plan.yaw_sum;
+
     plotter.plot(data);
 
     std::this_thread::sleep_for(10ms);

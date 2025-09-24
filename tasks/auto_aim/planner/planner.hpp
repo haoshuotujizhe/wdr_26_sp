@@ -48,6 +48,7 @@ struct Plan_double
   float pitch;
   float pitch_vel;
   float pitch_acc;
+  float yaw_sum;
 };
 
 class Planner

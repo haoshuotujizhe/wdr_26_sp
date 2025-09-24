@@ -167,14 +167,14 @@ Plan_double Planner::plan_double(Target target, double bullet_speed)
   }
 
   // 3. Solve yaw
-  Eigen::VectorXd x0(5);
-  x0 << traj(0, 0), traj(0, 0)*0.3, traj(0, 0)*0.7, traj(1, 0)*0.3, traj(1, 0)*0.7;
+  Eigen::VectorXd x0(3);
+  x0 << traj(0, 0), traj(0, 0)*0.5, traj(0, 0)*0.5;
   tiny_set_x0(yaw_solver_, x0);
 
-  yaw_solver_->work->Xref = Eigen::MatrixXd::Zero(5,HORIZON);
+  yaw_solver_->work->Xref = Eigen::MatrixXd::Zero(3,HORIZON);
   yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON);
-  yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.7;
-  yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.3;
+  // yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.7;
+  // yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.3;
   tiny_solve(yaw_solver_);
 
   // 4. Solve pitch
@@ -192,18 +192,19 @@ Plan_double Planner::plan_double(Target target, double bullet_speed)
   plan_double.target_pitch = traj(2, HALF_HORIZON);
 
   plan_double.yaw = tools::limit_rad(yaw_solver_->work->x(0, HALF_HORIZON) + yaw0);
-  plan_double.yaw_vel = yaw_solver_->work->x(3, HALF_HORIZON)+yaw_solver_->work->x(4, HALF_HORIZON);
+  plan_double.yaw_vel = yaw_solver_->work->u(0, HALF_HORIZON)+yaw_solver_->work->u(1, HALF_HORIZON);
   // plan_double.yaw_acc = yaw_solver_->work->u(0, HALF_HORIZON);
-  plan_double.yaw_acc = 0;
+  plan_double.yaw_acc = yaw_solver_->work->u(2, HALF_HORIZON)+yaw_solver_->work->u(3, HALF_HORIZON);
 
   plan_double.yaw_big = tools::limit_rad(yaw_solver_->work->x(1, HALF_HORIZON) + yaw0);
-  plan_double.yaw_vel_big = yaw_solver_->work->x(3, HALF_HORIZON);
-  plan_double.yaw_acc_big = yaw_solver_->work->u(0, HALF_HORIZON);
+  plan_double.yaw_vel_big = yaw_solver_->work->u(0, HALF_HORIZON);
+  plan_double.yaw_acc_big = yaw_solver_->work->u(2, HALF_HORIZON);
 
   plan_double.yaw_small = tools::limit_rad(yaw_solver_->work->x(2, HALF_HORIZON) + yaw0);
-  plan_double.yaw_vel_small = yaw_solver_->work->x(4, HALF_HORIZON);
-  plan_double.yaw_acc_small = yaw_solver_->work->u(1, HALF_HORIZON);
+  plan_double.yaw_vel_small = yaw_solver_->work->u(1, HALF_HORIZON);
+  plan_double.yaw_acc_small = yaw_solver_->work->u(3, HALF_HORIZON);
 
+  plan_double.yaw_sum = plan_double.yaw_big+plan_double.yaw_small;
 
   plan_double.pitch = pitch_solver_->work->x(0, HALF_HORIZON);
   plan_double.pitch_vel = pitch_solver_->work->x(1, HALF_HORIZON);
@@ -249,41 +250,67 @@ void Planner::setup_doubleyaw_solver(const std::string & config_path)
   auto Q_yaw = tools::read<std::vector<double>>(yaml, "Q_yaw");
   auto R_yaw = tools::read<std::vector<double>>(yaml, "R_yaw");
   //clang-format off
-  Eigen::MatrixXd A{{1, 0, 0, DT, DT}, \
-                    {0, 1, 0, DT, 0 }, \
-                    {0, 0, 1, 0 , DT}, \
-                    {0, 0, 0, 1 , 0 }, \
-                    {0, 0, 0, 0 , 1 }  };
+  // Eigen::MatrixXd A{{1, 0, 0, DT, DT}, \
+  //                   {0, 1, 0, DT, 0 }, \
+  //                   {0, 0, 1, 0 , DT}, \
+  //                   {0, 0, 0, 1 , 0 }, \
+  //                   {0, 0, 0, 0 , 1 }  };
+  Eigen::MatrixXd A{{0, 1, 1}, \
+                    {0, 1, 0}, \
+                    {0, 0, 1}  };
+  
+  Eigen::MatrixXd B{{ 0, 0,  0,  0}, \
+                    { 1, 0, DT,  0}, \
+                    { 0, 1,  0, DT}};
   //clang-format on
-  Eigen::MatrixXd B{{0,0},{0,0},{0,0}, {DT, 0}, {0, DT}};
-  Eigen::VectorXd f{{0, 0,0,0, 0}};
-  Eigen::Matrix<double, 5, 1> Q(Q_yaw.data());
-  Eigen::Matrix<double, 2, 1> R(R_yaw.data());
-  tiny_setup(&yaw_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 5, 2, HORIZON, 0);
+  Eigen::VectorXd f{{0, 0, 0}};
+  Eigen::Matrix<double, 3, 1> Q(Q_yaw.data());
+  Eigen::Matrix<double, 4, 1> R(R_yaw.data());
+  tiny_setup(&yaw_solver_, A, B, f, Q.asDiagonal(), R.asDiagonal(), 1.0, 3, 4, HORIZON, 0);
 
-  Eigen::MatrixXd x_max(5, HORIZON);
+  Eigen::MatrixXd x_max(3, HORIZON);
   x_max.row(0).setConstant(1e17); // No limit on angle
   x_max.row(1).setConstant(1e17);  // No limit on angle1
   x_max.row(2).setConstant(M_PI/6);  // limit on angle2
-  x_max.row(3).setConstant(0.001); // Max velocity 1  
-  x_max.row(4).setConstant(1.0);  // Max velocity 2
 
-
-  Eigen::MatrixXd x_min(5, HORIZON);
+  Eigen::MatrixXd x_min(3, HORIZON);
   x_min.row(0).setConstant(-1e17); // No limit on angle
   x_min.row(1).setConstant(-1e17); // Min velocity 1
   x_min.row(2).setConstant(-M_PI/6); // Min velocity 2
-  x_min.row(3).setConstant(-0.001); // Max velocity 1
-  x_min.row(4).setConstant(-1.0);  // Max velocity 2
 
-  Eigen::MatrixXd u_max(2, HORIZON - 1);
-  u_max.row(0).setConstant(max_big_yaw_acc);  // Limit for u(0)
-  u_max.row(1).setConstant(max_small_yaw_acc); // Limit for u(1)
+  Eigen::MatrixXd u_max(4, HORIZON - 1);
+  u_max.row(0).setConstant(0.001); // Max velocity 1  
+  u_max.row(1).setConstant(1.0);  // Max velocity 2
+  u_max.row(2).setConstant(max_big_yaw_acc);  // Limit for u(0)
+  u_max.row(3).setConstant(max_small_yaw_acc); // Limit for u(1)
 
-  Eigen::MatrixXd u_min(2, HORIZON - 1);
-  u_min.row(0).setConstant(-max_big_yaw_acc); // Limit for u(0)
-  u_min.row(1).setConstant(-max_small_yaw_acc); // Limit for u(1)
+  Eigen::MatrixXd u_min(4, HORIZON - 1);
+  u_min.row(0).setConstant(-0.001); // Max velocity 1  
+  u_min.row(1).setConstant(-1.0);  // Max velocity 2
+  u_min.row(2).setConstant(-max_big_yaw_acc); // Limit for u(0)
+  u_min.row(3).setConstant(-max_small_yaw_acc); // Limit for u(1)
   tiny_set_bound_constraints(yaw_solver_, x_min, x_max, u_min, u_max);
+
+  // 添加线性等式约束：yaw - yaw_big - yaw_small = 0
+  // 转换为两个不等式：
+  // yaw - yaw_big - yaw_small <= 0  和  yaw - yaw_big - yaw_small >= 0
+  
+  Eigen::MatrixXd Alin_x(2, 3);  // 2个约束，3个状态变量
+  Alin_x << 1, -1, -1,   // yaw - yaw_big - yaw_small <= 0
+           -1,  1,  1;   // -yaw + yaw_big + yaw_small <= 0
+  
+  Eigen::VectorXd blin_x(2);
+  blin_x << 0, 0;  // 右侧都是 0
+  
+  // 没有控制输入的线性约束
+  Eigen::MatrixXd Alin_u(0, 2);  // 0个约束
+  Eigen::VectorXd blin_u(0);
+  
+  tiny_set_linear_constraints(yaw_solver_, Alin_x, blin_x, Alin_u, blin_u);
+
+  // 启用线性约束
+  yaw_solver_->settings->en_state_linear = 1;
+  yaw_solver_->settings->en_input_linear = 0;
 
   yaw_solver_->settings->max_iter = 10; 
 }
