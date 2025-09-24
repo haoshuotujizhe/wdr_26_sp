@@ -172,7 +172,9 @@ Plan_double Planner::plan_double(Target target, double bullet_speed)
   tiny_set_x0(yaw_solver_, x0);
 
   yaw_solver_->work->Xref = Eigen::MatrixXd::Zero(5,HORIZON);
-  yaw_solver_->work->Xref.block<0, 0>(1, HORIZON) = traj.block(0, 0, 1, HORIZON);
+  yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON);
+  yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.7;
+  yaw_solver_->work->Xref.block(0,0,1, HORIZON) = traj.block(0, 0, 1, HORIZON)*0.3;
   tiny_solve(yaw_solver_);
 
   // 4. Solve pitch
@@ -190,7 +192,7 @@ Plan_double Planner::plan_double(Target target, double bullet_speed)
   plan_double.target_pitch = traj(2, HALF_HORIZON);
 
   plan_double.yaw = tools::limit_rad(yaw_solver_->work->x(0, HALF_HORIZON) + yaw0);
-  plan_double.yaw_vel = yaw_solver_->work->x(1, HALF_HORIZON);
+  plan_double.yaw_vel = yaw_solver_->work->x(3, HALF_HORIZON)+yaw_solver_->work->x(4, HALF_HORIZON);
   // plan_double.yaw_acc = yaw_solver_->work->u(0, HALF_HORIZON);
   plan_double.yaw_acc = 0;
 
@@ -261,18 +263,18 @@ void Planner::setup_doubleyaw_solver(const std::string & config_path)
 
   Eigen::MatrixXd x_max(5, HORIZON);
   x_max.row(0).setConstant(1e17); // No limit on angle
-  x_max.row(1).setConstant(10.0);  // No limit on angle1
+  x_max.row(1).setConstant(1e17);  // No limit on angle1
   x_max.row(2).setConstant(M_PI/6);  // limit on angle2
-  x_max.row(3).setConstant(10.0); // Max velocity 1
-  x_max.row(4).setConstant(10.0);  // Max velocity 2
+  x_max.row(3).setConstant(0.001); // Max velocity 1  
+  x_max.row(4).setConstant(1.0);  // Max velocity 2
 
 
   Eigen::MatrixXd x_min(5, HORIZON);
   x_min.row(0).setConstant(-1e17); // No limit on angle
-  x_min.row(1).setConstant(-10.0); // Min velocity 1
+  x_min.row(1).setConstant(-1e17); // Min velocity 1
   x_min.row(2).setConstant(-M_PI/6); // Min velocity 2
-  x_min.row(3).setConstant(-10.0); // Max velocity 1
-  x_min.row(4).setConstant(-10.0);  // Max velocity 2
+  x_min.row(3).setConstant(-0.001); // Max velocity 1
+  x_min.row(4).setConstant(-1.0);  // Max velocity 2
 
   Eigen::MatrixXd u_max(2, HORIZON - 1);
   u_max.row(0).setConstant(max_big_yaw_acc);  // Limit for u(0)

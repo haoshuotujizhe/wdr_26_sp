@@ -87,10 +87,10 @@ pitch_kd: 0
 #####-----planner-----#####
 fire_thresh: 0.0035
 
-max_big_yaw_acc: 50
-max_small_yaw_acc: 50
-Q_yaw: [9e6, 9e2, 9e2,0,0]
-R_yaw: [1,1]
+max_big_yaw_acc: 0.00224 # 1.2 n*m / 533.762 kg/m^2
+max_small_yaw_acc: 329.6 # 1.2 n*m / 3.64*1e-3 kg/m^2
+Q_yaw: [9e3, 0, 0,0,0]
+R_yaw: [-10000000,-10000000]
 
 max_pitch_acc: 100
 Q_pitch: [9e6, 0]
