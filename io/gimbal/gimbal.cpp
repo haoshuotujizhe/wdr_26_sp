@@ -14,6 +14,7 @@ Gimbal::Gimbal(const std::string & config_path)
 
   try {
     serial_.setPort(com_port);
+    serial_.setBaudrate(115200); 
     serial_.open();
   } catch (const std::exception & e) {
     tools::logger()->error("[Gimbal] Failed to open serial: {}", e.what());
@@ -131,6 +132,7 @@ void Gimbal::read_thread()
 {
   tools::logger()->info("[Gimbal] read_thread started.");
   int error_count = 0;
+  tools::logger()->warn("[Gimbal] Invalid mode: {}", rx_data_.mode);
 
   while (!quit_) {
     if (error_count > 5000) {

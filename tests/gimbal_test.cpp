@@ -3,6 +3,7 @@
 #include <chrono>
 #include <opencv2/opencv.hpp>
 #include <thread>
+#include <cmath>
 
 #include "tools/exiter.hpp"
 #include "tools/logger.hpp"
@@ -25,6 +26,11 @@ int main(int argc, char * argv[])
     cli.printMessage();
     return 0;
   }
+
+  const double yaw_amplitude = 0.7;   // 摆动幅度 (rad, ~40 deg)
+  const double yaw_frequency = 0.2;   // 摆动频率 (Hz, 5秒一个周期)
+  const double pitch_amplitude = 0.3; // 摆动幅度 (rad, ~17 deg)
+  const double pitch_frequency = 0.3; // 摆动频率 (Hz)
 
   tools::Exiter exiter;
   tools::Plotter plotter;
@@ -49,6 +55,11 @@ int main(int argc, char * argv[])
     }
 
     auto t = std::chrono::steady_clock::now();
+
+    double elapsed_seconds = tools::delta_time(t0, t);
+    float target_yaw = yaw_amplitude * sin(2 * M_PI * yaw_frequency * elapsed_seconds);
+    float target_pitch = pitch_amplitude * sin(2 * M_PI * pitch_frequency * elapsed_seconds);
+
     auto state = gimbal.state();
     auto q = gimbal.q(t);
     auto ypr = tools::eulers(q, 2, 1, 0);
@@ -75,6 +86,7 @@ int main(int argc, char * argv[])
     fire_count++;
 
     gimbal.send(true, test_fire && fire, 1, 0, 0, 0, 0, 0);
+    gimbal.send(true, test_fire && fire, target_yaw, 0, 0, target_pitch, 0, 0);
 
     nlohmann::json data;
     data["q_yaw"] = ypr[0];
