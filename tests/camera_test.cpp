@@ -38,6 +38,33 @@ int main(int argc, char * argv[])
 
     if (!display) continue;
     cv::imshow("img", img);
+    // 1. 转换为灰度图
+    cv::Mat gray_img;
+    cv::cvtColor(img, gray_img, cv::COLOR_BGR2GRAY);
+
+    // 2. 高斯滤波
+    cv::Mat blur_img;
+    cv::GaussianBlur(gray_img, blur_img, cv::Size(5, 5), 0);
+    cv::imshow("Gaussian Blur", blur_img);
+
+    // 3. 二值化
+    cv::Mat binary_img;
+    cv::threshold(blur_img, binary_img, 128, 255, cv::THRESH_BINARY);
+    cv::imshow("Binary Image", binary_img);
+
+    // 4. 开闭运算
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+
+    // 开运算
+    cv::Mat open_img;
+    cv::morphologyEx(binary_img, open_img, cv::MORPH_OPEN, kernel);
+    cv::imshow("Open Operation", open_img);
+
+    // 闭运算
+    cv::Mat close_img;
+    cv::morphologyEx(binary_img, close_img, cv::MORPH_CLOSE, kernel);
+    cv::imshow("Close Operation", close_img);
+
     if (cv::waitKey(1) == 'q') break;
   }
 }
