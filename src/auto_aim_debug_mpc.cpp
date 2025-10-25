@@ -140,6 +140,13 @@ int main(int argc, char * argv[])
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
+
+    nlohmann::json data;
+    data["q_w"] = q.w();
+    data["q_x"] = q.x();
+    data["q_y"] = q.y();
+    data["q_z"] = q.z();
+    plotter.plot(data);
   }
 
   quit = true;
