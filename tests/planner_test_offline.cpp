@@ -8,6 +8,7 @@
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
+#include "io/gimbal/gimbal.hpp"
 
 using namespace std::chrono_literals;
 
@@ -34,6 +35,8 @@ int main(int argc, char * argv[])
 
   tools::Exiter exiter;
   tools::Plotter plotter;
+
+  io::Gimbal gimbal(config_path);
 
   auto_aim::Planner planner(config_path);
   auto_aim::Target target(d,dir,v, w, 0.2, 0.1);
@@ -62,6 +65,9 @@ int main(int argc, char * argv[])
 
     plotter.plot(data);
 
+    gimbal.send(
+      plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
+      plan.pitch_acc);
     std::this_thread::sleep_for(10ms);
   }
 

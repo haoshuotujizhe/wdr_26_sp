@@ -57,6 +57,7 @@ int main(int argc, char * argv[])
     q = gimbal.q(t);
     auto gs = gimbal.state();
     // recorder.record(img, q, t);
+    // recorder.save_to_file();
 
     // -------------- 打符核心逻辑 --------------
 

@@ -13,7 +13,7 @@
 const std::string keys =
   "{help h usage ? | | 输出命令行参数说明}"
   "{f              | | 是否开火}"
-  "{@config-path   | | yaml配置文件路径 }";
+  "{@config-path   | configs/standard3.yaml| yaml配置文件路径 }";
 
 using namespace std::chrono_literals;
 
@@ -27,10 +27,10 @@ int main(int argc, char * argv[])
     return 0;
   }
 
-  const double yaw_amplitude = 0.7;   // 摆动幅度 (rad, ~40 deg)
-  const double yaw_frequency = 0.2;   // 摆动频率 (Hz, 5秒一个周期)
+  const double yaw_amplitude = 0.8;   // 摆动幅度 (rad, ~40 deg)
+  const double yaw_frequency = 3.0;   // 摆动频率 (Hz, 5秒一个周期)
   const double pitch_amplitude = 0.3; // 摆动幅度 (rad, ~17 deg)
-  const double pitch_frequency = 0.3; // 摆动频率 (Hz)
+  const double pitch_frequency = 1.0; // 摆动频率 (Hz)
 
   tools::Exiter exiter;
   tools::Plotter plotter;
@@ -64,6 +64,14 @@ int main(int argc, char * argv[])
     auto q = gimbal.q(t);
     auto ypr = tools::eulers(q, 2, 1, 0);
 
+    Eigen::Vector3d euler_from_gimbal = {state.yaw, 0.0, state.pitch}; // 假设roll为0
+
+    Eigen::Quaterniond quaternion_from_euler = Eigen::Quaterniond(
+        Eigen::AngleAxisd(euler_from_gimbal[0], Eigen::Vector3d::UnitZ()) *  // yaw绕Z轴
+        Eigen::AngleAxisd(euler_from_gimbal[1], Eigen::Vector3d::UnitY()) *  // pitch绕Y轴
+        Eigen::AngleAxisd(euler_from_gimbal[2], Eigen::Vector3d::UnitX())    // roll绕X轴
+    );
+
     auto fired = state.bullet_count > last_bullet_count;
     last_bullet_count = state.bullet_count;
 
@@ -85,7 +93,7 @@ int main(int argc, char * argv[])
     }
     fire_count++;
 
-    gimbal.send(true, test_fire && fire, 1, 0, 0, 0, 0, 0);
+    // gimbal.send(true, test_fire && fire, 1, 0, 0, 0, 0, 0);
     gimbal.send(true, test_fire && fire, target_yaw, 0, 0, target_pitch, 0, 0);
 
     nlohmann::json data;
@@ -97,9 +105,20 @@ int main(int argc, char * argv[])
     data["vpitch"] = state.pitch_vel;
     data["bullet_speed"] = state.bullet_speed;
     data["bullet_count"] = state.bullet_count;
+    data["target_yaw"] = target_yaw;
+    data["target_pitch"] = target_pitch;
     data["fired"] = fired ? 1 : 0;
     data["fire"] = test_fire && fire ? 1 : 0;
     data["t"] = tools::delta_time(t, t0);
+
+    data["q_w"] = q.w();
+    data["q_x"] = q.x();
+    data["q_y"] = q.y();
+    data["q_z"] = q.z();
+    data["quaternion_from_euler_w"] = quaternion_from_euler.w();
+    data["quaternion_from_euler_x"] = quaternion_from_euler.x();
+    data["quaternion_from_euler_y"] = quaternion_from_euler.y();
+    data["quaternion_from_euler_z"] = quaternion_from_euler.z();
     plotter.plot(data);
 
     std::this_thread::sleep_for(9ms);

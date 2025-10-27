@@ -17,6 +17,7 @@
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
+#include "tools/recorder.hpp"
 #include "tools/thread_safe_queue.hpp"
 
 using namespace std::chrono_literals;
@@ -29,6 +30,7 @@ int main(int argc, char * argv[])
 {
   tools::Exiter exiter;
   tools::Plotter plotter;
+  tools::Recorder recorder(60);
 
   cv::CommandLineParser cli(argc, argv, keys);
   auto config_path = cli.get<std::string>(0);
@@ -56,16 +58,47 @@ int main(int argc, char * argv[])
     while (!quit) {
       auto target = target_queue.front();
       auto gs = gimbal.state();
-      auto plan = planner.plan(target, gs.bullet_speed);
+      // auto plan = planner.plan(target, gs.bullet_speed);
+      auto plan = planner.plan(target, 10e9);
+    auto current_time = std::chrono::steady_clock::now();
+    auto q = gimbal.q(current_time);
+      Eigen::Vector3d euler_angles = tools::eulers(q, 2, 1, 0, false);
+      // Eigen::Vector3d euler_angles = tools::eulers(q, 2, 1, 0, false);
+      double yaw_from_quaternion = euler_angles[0];    // 弧度
+      double pitch_from_quaternion = euler_angles[1];   // 弧度
+      double roll_from_quaternion = euler_angles[2];    // 弧度
 
+      if (target.has_value())
+  {    // 获取所有装甲板的世界坐标
+      std::vector<Eigen::Vector4d> armor_xyza_list = target->armor_xyza_list();
+      
+      // 选择最近的装甲板（或任意一个）
+      Eigen::Vector3d xyz = armor_xyza_list[0].head(3);  // 取第一个装甲板的xyz
+      
+      // 转换为球坐标 (yaw, pitch, distance)
+      Eigen::Vector3d ypd = tools::xyz2ypd(xyz);
+      
+      double target_yaw = ypd[0];    // 目标yaw角度
+      double target_pitch = ypd[1];  // 目标pitch角度
+      double distance = ypd[2];
       gimbal.send(
-        plan.control, plan.fire, plan.yaw, plan.yaw_vel, plan.yaw_acc, plan.pitch, plan.pitch_vel,
-        plan.pitch_acc);
+        plan.control, plan.fire, 
+        // -gs.yaw+plan.yaw,
+        plan.yaw, 
+        plan.yaw_vel, plan.yaw_acc, 
+        // -plan.pitch-gs.pitch, 
+        // -gs.pitch+plan.pitch,
+        -plan.pitch,
+        plan.pitch_vel,plan.pitch_acc);}
+      // else{
+      //   gimbal.send(true, false, gs.yaw, 0, 0, gs.pitch, 0, 0);
+      //   // gimbal.send(true, false, -yaw_from_quaternion, 0, 0,  -pitch_from_quaternion, 0, 0);
+      // }
 
       auto fired = gs.bullet_count > last_bullet_count;
       last_bullet_count = gs.bullet_count;
 
-      nlohmann::json data;
+      nlohmann::json data;  
       data["t"] = tools::delta_time(std::chrono::steady_clock::now(), t0);
 
       data["gimbal_yaw"] = gs.yaw;
@@ -80,7 +113,7 @@ int main(int argc, char * argv[])
       data["plan_yaw_vel"] = plan.yaw_vel;
       data["plan_yaw_acc"] = plan.yaw_acc;
 
-      data["plan_pitch"] = plan.pitch;
+      data["plan_pitch"] = -plan.pitch;
       data["plan_pitch_vel"] = plan.pitch_vel;
       data["plan_pitch_acc"] = plan.pitch_acc;
 
@@ -134,6 +167,7 @@ int main(int argc, char * argv[])
       auto image_points =
         solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
       tools::draw_points(img, image_points, {0, 0, 255});
+      recorder.record(img, q, t);
     }
 
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
@@ -142,6 +176,7 @@ int main(int argc, char * argv[])
     if (key == 'q') break;
 
     nlohmann::json data;
+    
     data["q_w"] = q.w();
     data["q_x"] = q.x();
     data["q_y"] = q.y();

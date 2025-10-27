@@ -57,6 +57,7 @@ Plan Planner::plan(Target target, double bullet_speed)
   }
   auto bullet_traj = tools::Trajectory(bullet_speed, min_dist, xyz.z());
   target.predict(bullet_traj.fly_time);
+  // target.predict(10e-6);
 
   // 2. Get trajectory
   double yaw0;
