@@ -64,7 +64,7 @@ int main(int argc, char * argv[])
       last_mode = mode;
     }
 
-    // recorder.record(img, q, t);
+    recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
 

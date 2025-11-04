@@ -60,7 +60,7 @@ def print_gimbal_data(data: GimbalData):
 
 # 使用示例
 if __name__ == "__main__":
-    hex_data = "535000660e7e3f1a09a63d7a6c51baa06cbd3d00e0123c001034bc34a434be000000000000704100008f03"
+    hex_data = "535000d1737b3f190d8bbbe5319abcb4223f3e5070c03e0010343ccadf7bbc000000000000704100005454"
     
     try:
         gimbal_data = unpack_gimbal_data(hex_data)
