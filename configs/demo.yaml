@@ -7,7 +7,7 @@ classify_model: assets/tiny_resnet.onnx
 yolo11_model_path: assets/yolo11.xml
 yolov8_model_path: assets/yolov8.xml
 yolov5_model_path: assets/yolov5.xml
-device: GPU
+device: CPU
 min_confidence: 0.8
 use_traditional: false
 
@@ -69,6 +69,9 @@ distort_coeffs: [-0.077944626599568856, 0.15447826031486889, -0.0025714394278524
 # 相机同理想情况的偏角: yaw0.46 pitch0.61 roll-1.53 degree
 R_camera2gimbal: [-0.0083195760046954614, 0.010498791137270739, 0.99991027599468041, -0.99960756138647755, -0.026835747568381807, -0.0080352891314148939, 0.026748978935305992, -0.99958472279097077, 0.010717933047771133]
 t_camera2gimbal: [0.094969301833534511, 0.095006290298006682, 0.050987066291756609]
+
+#云台坐标系下
+t_camera2gun: [0.0, -5.0, -5.0]
 
 #####-----cboard参数-----#####
 quaternion_canid: 0x100

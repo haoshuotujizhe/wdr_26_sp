@@ -2,11 +2,22 @@ cmake_minimum_required(VERSION 3.16.3)
 
 project(sp_vision)
 
+# set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+
 set(CMAKE_CXX_STANDARD 17)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 message(STATUS "--------------------CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}--------------------")
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    include(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+    if(COMPILER_SUPPORTS_MARCH_NATIVE)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+        message(STATUS "Compiler supports -march=native, enabling it for architecture-specific optimizations.")
+    endif()
+endif()
 
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)

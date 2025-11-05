@@ -170,6 +170,11 @@ int main(int argc, char * argv[])
       recorder.record(img, q, t);
     }
 
+    tools::Trajectory final_traj(
+        gs.bullet_speed, std::hypot(aim_xyza[0], aim_xyza[1]), aim_xyza[2]);
+      // 使用 aimer 计算出的最终 yaw 角来绘制
+      solver.draw_trajectory(img, final_traj, plan.yaw, gs.bullet_speed);
+
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
