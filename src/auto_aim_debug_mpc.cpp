@@ -123,6 +123,8 @@ int main(int argc, char * argv[])
       if (target.has_value()) {
         data["target_z"] = target->ekf_x()[4];   //z
         data["target_vz"] = target->ekf_x()[5];  //vz
+        data["target_vx"] = target->ekf_x()[1];
+        data["target_vx"] = target->ekf_x()[3];
       }
 
       if (target.has_value()) {
@@ -139,10 +141,13 @@ int main(int argc, char * argv[])
 
   cv::Mat img;
   std::chrono::steady_clock::time_point t;
+  auto time_offset_us = std::chrono::microseconds(100);
+
 
   while (!exiter.exit()) {
     camera.read(img, t);
-    auto q = gimbal.q(t);
+    // auto q = gimbal.q(t+100us);
+    auto q = gimbal.q(t+time_offset_us);
 
     solver.set_R_gimbal2world(q);
     auto armors = yolo.detect(img);
@@ -168,17 +173,26 @@ int main(int argc, char * argv[])
         solver.reproject_armor(aim_xyza.head(3), aim_xyza[3], target.armor_type, target.name);
       tools::draw_points(img, image_points, {0, 0, 255});
       recorder.record(img, q, t);
+      // tools::Trajectory final_traj(
+      //   gs.bullet_speed, std::hypot(aim_xyza[0], aim_xyza[1]), aim_xyza[2]);
+      // // 使用 aimer 计算出的最终 yaw 角来绘制
+      // solver.draw_trajectory(img, final_traj, plan.yaw, gs.bullet_speed);
     }
 
-    tools::Trajectory final_traj(
-        gs.bullet_speed, std::hypot(aim_xyza[0], aim_xyza[1]), aim_xyza[2]);
-      // 使用 aimer 计算出的最终 yaw 角来绘制
-      solver.draw_trajectory(img, final_traj, plan.yaw, gs.bullet_speed);
+    // 在图像上显示当前的时间偏移量
+    auto offset_text = fmt::format("Time Offset: {} us", time_offset_us.count());
+    cv::putText(img, offset_text, {10, 60}, cv::FONT_HERSHEY_SIMPLEX, 1.0, {0, 255, 0}, 2);
 
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(1);
     if (key == 'q') break;
+    if (key == '=' || key == '+') {
+      time_offset_us += std::chrono::microseconds(100);
+    }
+    if (key == '-') {
+      time_offset_us -= std::chrono::microseconds(100);
+    }
 
     nlohmann::json data;
     

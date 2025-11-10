@@ -9,7 +9,7 @@
 const std::string keys =
   "{help h usage ? |                          | 输出命令行参数说明}"
   "{config-path c  | configs/calibration.yaml | yaml配置文件路径 }"
-  "{@input-folder  | assets/img_with_q        | 输入文件夹路径   }";
+  "{@input-folder  | assets/img_with_q1        | 输入文件夹路径   }";
 
 std::vector<cv::Point3f> centers_3d(const cv::Size & pattern_size, const float center_distance)
 {
@@ -45,8 +45,7 @@ void load(
 
     // 识别标定板
     std::vector<cv::Point2f> centers_2d;
-    auto success = cv::findCirclesGrid(img, pattern_size, centers_2d, cv::CALIB_CB_SYMMETRIC_GRID);
-
+    auto success = cv::findChessboardCornersSB(img, cv::Size(8, 6), centers_2d);  // 默认是对称圆点图案
     // 显示识别结果
     auto drawing = img.clone();
     cv::drawChessboardCorners(drawing, pattern_size, centers_2d, success);
