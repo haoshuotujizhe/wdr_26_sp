@@ -2,6 +2,8 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <opencv2/calib3d.hpp> 
+
 #include <vector>
 
 #include "tools/logger.hpp"
@@ -12,6 +14,7 @@ namespace auto_aim
 constexpr double LIGHTBAR_LENGTH = 56e-3;     // m
 constexpr double BIG_ARMOR_WIDTH = 230e-3;    // m
 constexpr double SMALL_ARMOR_WIDTH = 135e-3;  // m
+constexpr double g = 9.7833;
 
 const std::vector<cv::Point3f> BIG_ARMOR_POINTS{
   {0, BIG_ARMOR_WIDTH / 2, LIGHTBAR_LENGTH / 2},
@@ -268,7 +271,7 @@ double Solver::armor_reprojection_error(
 }
 
 // 世界坐标到像素坐标的转换
-std::vector<cv::Point2f> Solver::world2pixel(const std::vector<cv::Point3f> & worldPoints)
+std::vector<cv::Point2f> Solver::world2pixel(const std::vector<cv::Point3f> & worldPoints) const
 {
   Eigen::Matrix3d R_world2camera = R_camera2gimbal_.transpose() * R_gimbal2world_.transpose();
   Eigen::Vector3d t_world2camera = -R_camera2gimbal_.transpose() * t_camera2gimbal_;
@@ -295,4 +298,53 @@ std::vector<cv::Point2f> Solver::world2pixel(const std::vector<cv::Point3f> & wo
   cv::projectPoints(valid_world_points, rvec, tvec, camera_matrix_, distort_coeffs_, pixelPoints);
   return pixelPoints;
 }
+
+// ...existing code...
+void Solver::draw_trajectory(
+  cv::Mat & img, const tools::Trajectory & traj, double aim_yaw, double v0) const
+{
+  if (traj.unsolvable) {
+    tools::logger()->info("traj.unsolvable");
+    return;
+  }
+
+  std::vector<cv::Point3f> trajectory_world_points;
+  int point_num = 20;  // 生成20个弹道点
+
+  // 步骤 1.3: 在枪口坐标系下定义子弹的初始速度矢量 (沿X轴向前)
+  Eigen::Vector3d v_gun(v0, 0, 0);
+
+  // 步骤 1.4: 将初始速度矢量转换到世界坐标系
+  Eigen::Vector3d v_world = R_gimbal2world_ * v_gun;
+
+  // 步骤 1.5: 循环计算弹道轨迹点
+  for (int i = 0; i <= point_num; ++i) {
+    double t = traj.fly_time * i / point_num;
+
+    // 计算t时刻弹丸在世界坐标系下的位置 (假设枪口与云台中心重合)
+    double x = v_world.x() * t;
+    double y = v_world.y() * t;
+    double z = v_world.z() * t - 0.5 * g * t * t;
+    trajectory_world_points.emplace_back(x, y, z);
+  }
+
+  // 2. 将世界坐标系下的点投影到像素坐标系
+  std::vector<cv::Point2f> image_points = world2pixel(trajectory_world_points);
+
+  // 3. 在图像上绘制弹道
+  if (image_points.size() < 2) {
+    return;
+  }
+  for (size_t i = 0; i < image_points.size() - 1; ++i) {
+    // 检查确保点在图像范围内
+    if (
+      image_points[i].x > 0 && image_points[i].x < img.cols && image_points[i].y > 0 &&
+      image_points[i].y < img.rows && image_points[i + 1].x > 0 &&
+      image_points[i + 1].x < img.cols && image_points[i + 1].y > 0 &&
+      image_points[i + 1].y < img.rows) {
+      cv::line(img, image_points[i], image_points[i + 1], cv::Scalar(0, 255, 255), 2);  // 黄色
+    }
+  }
+}
+// ...existing code...
 }  // namespace auto_aim

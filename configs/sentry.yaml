@@ -36,7 +36,7 @@ usb_gain: 10 #0-96
 #####-----工业相机参数-----#####
 camera_name: "hikrobot"
 exposure_ms: 1.8 #0.8
-gain: 16.9
+gain: 45 #16.9
 vid_pid: "2bdf:0001"
 
 #####-----传统方法参数-----#####

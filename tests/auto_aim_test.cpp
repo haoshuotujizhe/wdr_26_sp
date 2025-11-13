@@ -188,6 +188,18 @@ int main(int argc, char * argv[])
 
     plotter.plot(data);
 
+    // === 添加弹道绘制调用 ===
+    if (!targets.empty() && aimer.debug_aim_point.valid) {
+      auto aim_xyza = aimer.debug_aim_point.xyza;
+      double bullet_speed = 27.0; // 与 aimer.aim() 调用中使用的弹速保持一致
+      // 使用 aimer 计算出的最终瞄准点来创建弹道
+      tools::Trajectory final_traj(
+        bullet_speed, std::hypot(aim_xyza[0], aim_xyza[1]), aim_xyza[2]);
+      // 使用 aimer 计算出的最终 yaw 角来绘制
+      solver.draw_trajectory(img, final_traj, command.yaw, bullet_speed);
+    }
+    // =======================
+    
     cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
     cv::imshow("reprojection", img);
     auto key = cv::waitKey(30);

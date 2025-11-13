@@ -6,6 +6,7 @@
 #include <opencv2/core/eigen.hpp>
 
 #include "armor.hpp"
+#include "tools/trajectory.hpp"
 
 namespace auto_aim
 {
@@ -25,7 +26,11 @@ public:
 
   double oupost_reprojection_error(Armor armor, const double & picth);
 
-  std::vector<cv::Point2f> world2pixel(const std::vector<cv::Point3f> & worldPoints);
+  std::vector<cv::Point2f> world2pixel(const std::vector<cv::Point3f> & worldPoints) const;
+
+  void draw_trajectory(
+    cv::Mat & img, const tools::Trajectory & traj, double aim_yaw, double v0) const;
+
 
 private:
   cv::Mat camera_matrix_;

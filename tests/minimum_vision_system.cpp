@@ -14,6 +14,7 @@
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
+#include "io/gimbal/gimbal.hpp"
 
 const std::string keys =
   "{help h usage ? | | 输出命令行参数说明}"
@@ -33,6 +34,7 @@ int main(int argc, char * argv[])
   tools::Plotter plotter;
   io::Camera camera(config_path);
   io::DM_IMU dm_imu;
+  io::Gimbal gimbal(config_path);
 
   auto_aim::multithread::MultiThreadDetector detector(config_path);
   auto_aim::Solver solver(config_path);
